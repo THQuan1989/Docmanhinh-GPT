@@ -11,10 +11,9 @@ import kotlin.math.max
 import kotlin.math.min
 
 /**
- * Bộ nhận diện hành trang tích hợp, xử lý hoàn toàn offline trên thiết bị.
- * Học từ các ô mẫu do người dùng chạm chọn. Mỗi ô được mô tả bằng lưới màu RGB 12x12;
- * so khớp đa đặc trưng (màu + độ sáng + cấu trúc) để chịu được thay đổi nhỏ khi chụp màn hình.
- * Đây là image-matching nhẹ trên thiết bị, không phải mạng neural tổng quát.
+ * Bộ nhận diện hành trang offline. AI ML Kit gắn nhãn ngữ nghĩa từng ô; bộ so khớp
+ * ảnh mẫu vẫn là tầng quyết định GIỮ/JOB để tránh dùng nhãn phổ thông của game làm
+ * quyết định phá huỷ. Cả hai xử lý trên thiết bị, không gửi ảnh ra ngoài.
  */
 object InventoryVision {
     private const val VERSION = 2
@@ -25,7 +24,7 @@ object InventoryVision {
     private const val DEFAULT_CELL_DP = 64
     private const val KEEP_THRESHOLD = 0.78f
 
-    data class Item(val label: String, val score: Float, val x: Int, val y: Int, val w: Int = 0, val h: Int = 0)
+    data class Item(val label: String, val score: Float, val x: Int, val y: Int, val w: Int = 0, val h: Int = 0, val aiLabels: List<String> = emptyList())
     private data class Sample(val feature: FloatArray)
 
     fun cellSizePx(c: Context): Int = (DEFAULT_CELL_DP * c.resources.displayMetrics.density).toInt().coerceAtLeast(32)
@@ -70,13 +69,18 @@ object InventoryVision {
                 while (x + size <= r) {
                     val crop = Bitmap.createBitmap(frame, x, y, size, size)
                     val feature = describe(crop)
+                    // AI gắn nhãn ngữ nghĩa trên máy; kết quả chỉ bổ sung thông tin,
+                    // không được dùng để tự quyết định giữ/xóa nhằm tránh nhãn chung gây nhầm.
+                    val aiLabels = if (visualActivity(feature) >= 0.018f) {
+                        runCatching { OfflineImageAI.identify(crop) }.getOrDefault(emptyList())
+                    } else emptyList()
                     crop.recycle()
                     // Bỏ ô gần như trống/đơn sắc. Người dùng nên khoanh đúng vùng lưới hành trang.
                     if (visualActivity(feature) >= 0.018f) {
                         val best = samples.maxOfOrNull { similarity(it.feature, feature) } ?: 0f
                         val keep = best >= KEEP_THRESHOLD
                         val label = if (keep) "GIU_${(best * 100).toInt()}" else "JOB"
-                        out.add(Item(label, if (keep) best else 1f - best, x + size / 2, y + size / 2, size, size))
+                        out.add(Item(label, if (keep) best else 1f - best, x + size / 2, y + size / 2, size, size, aiLabels))
                     }
                     x += size
                 }

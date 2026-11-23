@@ -106,3 +106,11 @@ adb install -r apk/ScreenWatcher-debug.apk
 - **Chạy thử mặc định bật**. Kiểm tra nhật ký và tọa độ JOB kỹ trước khi bỏ chạy thử. Kích thước ô mặc định cần khớp với lưới game; vùng quét nên được căn từ góc trên-trái của ô đầu tiên.
 
 Lưu ý kỹ thuật: `InventoryVision` là bộ nhận diện thị giác/so khớp đặc trưng ảnh tự xây dựng, chạy trên thiết bị; không phải mạng neural đã được huấn luyện tổng quát. Bản này dùng lưới ô cố định 64dp và ảnh mẫu người dùng cung cấp, nên cần kiểm thử với giao diện game thực tế trước khi cho phép macro thao tác thật.
+
+
+## Nhận diện ảnh offline (v1.3)
+
+- `OfflineImageAI.kt` dùng ML Kit Image Labeling với mô hình bundled trong APK để gắn nhãn ngữ nghĩa cho từng ô ảnh ngay trên điện thoại.
+- Không cần API key, không gọi máy chủ và không gửi ảnh ra Internet.
+- Bộ so khớp ảnh mẫu hiện tại vẫn là tầng quyết định GIỮ/JOB; nhãn AI chỉ hiển thị bổ sung vì nhãn phổ thông có thể không nhận ra tên vật phẩm riêng của từng game.
+- Người dùng vẫn phải chọn mẫu vật phẩm cần bảo vệ. Nếu nhãn AI trống, bộ so khớp ảnh mẫu vẫn hoạt động như trước.

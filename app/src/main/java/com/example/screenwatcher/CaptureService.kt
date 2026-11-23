@@ -471,7 +471,10 @@ class CaptureService : Service() {
 
     private fun invSummary(kept: List<InventoryVision.Item>, queue: List<InventoryVision.Item>): String =
         "giữ nguyên ${kept.size}" + (if (kept.isNotEmpty()) " (${kept.groupingBy { it.label }.eachCount().entries.joinToString(", ") { "${it.key}×${it.value}" }})" else "") +
-            "; hàng đợi ${queue.size}" + (if (queue.isNotEmpty()) ": " + queue.take(6).joinToString(", ") { "${it.label}(${it.x},${it.y})" } + (if (queue.size > 6) "…" else "") else "")
+            "; hàng đợi ${queue.size}" + (if (queue.isNotEmpty()) ": " + queue.take(6).joinToString(", ") {
+                val semantic = it.aiLabels.firstOrNull()?.let { tag -> " [$tag]" } ?: ""
+                "${it.label}$semantic(${it.x},${it.y})"
+            } + (if (queue.size > 6) "…" else "") else "")
 
     /** Đánh giá lưới hành trang bằng bộ so khớp ảnh mẫu nội bộ. */
     private suspend fun evalInventory(rule: Rule, frame: Bitmap): Hit? {
@@ -521,7 +524,8 @@ class CaptureService : Service() {
                 stuck = 0
             }
             lastKey = k; lastSize = queue.size
-            AppState.log("🛡 JOB ${done + 1}: ${job.label} tại ${job.x},${job.y} • còn ${queue.size - 1} trong hàng đợi, giữ nguyên ${kept.size}")
+            val aiTag = job.aiLabels.firstOrNull()?.let { " • AI: $it" } ?: ""
+            AppState.log("🛡 JOB ${done + 1}: ${job.label} tại ${job.x},${job.y}$aiTag • còn ${queue.size - 1} trong hàng đợi, giữ nguyên ${kept.size}")
             Macro.run(rule.macro, job.x, job.y)
             done++
             delay(rule.invSettleMs.coerceAtLeast(100))
