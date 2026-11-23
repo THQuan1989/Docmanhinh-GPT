@@ -23,24 +23,19 @@ class InventorySamplePicker(
     private val ctx: Context,
     private val frame: Bitmap,
     private val ruleId: String,
-    regions: List<Region>,
+    private val regions: List<Region>,
     private val onDone: (Int) -> Unit,
     private val onCancel: () -> Unit,
 ) {
     private val wm = ctx.getSystemService(Context.WINDOW_SERVICE) as WindowManager
-    private val size = InventoryVision.cellSizePx(ctx)
-    private val cells = buildList {
-        val regs = regions
-        regs.forEach { rg ->
-            val l = rg.l.coerceIn(0, frame.width); val t = rg.t.coerceIn(0, frame.height)
-            val r = rg.r.coerceIn(l, frame.width); val b = rg.b.coerceIn(t, frame.height)
-            var y = t
-            while (y + size <= b) {
-                var x = l
-                while (x + size <= r) { add(Rect(x, y, x + size, y + size)); x += size }
-                y += size
-            }
-        }
+    private var size = InventoryVision.cellSizePx(ctx, ruleId)
+    private var cells: List<Rect> = InventoryVision.buildCells(frame.width, frame.height, regions, size)
+    private fun resize(deltaDp: Int) {
+        val dp = (InventoryVision.cellDp(ctx, ruleId) + deltaDp).coerceIn(24, 200)
+        InventoryVision.setCellDp(ctx, ruleId, dp)
+        size = InventoryVision.cellSizePx(ctx, ruleId)
+        cells = InventoryVision.buildCells(frame.width, frame.height, regions, size)
+        selected.clear(); refresh()
     }
     private val selected = LinkedHashSet<Int>()
     private val view = GridView()
@@ -72,13 +67,15 @@ class InventorySamplePicker(
             hide(); onDone(n)
         })
         row.addView(button("Bỏ chọn", 0.9f) { selected.clear(); refresh() })
+        row.addView(button("−", 0.4f) { resize(-4) })
+        row.addView(button("+", 0.4f) { resize(4) })
         row.addView(button("Huỷ", 0.8f) { hide(); onCancel() })
         bar.addView(row); refresh()
         wm.addView(view, params( WindowManager.LayoutParams.MATCH_PARENT, Gravity.TOP, WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN))
         wm.addView(bar, params(WindowManager.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL, WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL).apply { y = dp(40) })
     }
     fun hide() { runCatching { wm.removeView(view) }; runCatching { wm.removeView(bar) } }
-    private fun refresh() { status.text = "Chạm vào từng ô vật phẩm muốn GIỮ (xanh). Đã chọn: ${selected.size}. Ô còn lại sẽ được đưa vào JOB."; view.invalidate() }
+    private fun refresh() { status.text = "Chạm ô vật phẩm muốn GIỮ (xanh). Đã chọn: ${selected.size}. Cỡ ô: ${InventoryVision.cellDp(ctx, ruleId)}dp (−/+ để chỉnh cho khớp ô game; vùng quét phải bắt đầu đúng góc trên-trái ô đầu tiên). Ô còn lại vào JOB."; view.invalidate() }
 
     private inner class GridView : View(ctx) {
         private val stroke = Paint().apply { style = Paint.Style.STROKE; strokeWidth = dp(3).toFloat() }

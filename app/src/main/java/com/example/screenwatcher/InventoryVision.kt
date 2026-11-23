@@ -18,7 +18,39 @@ object InventoryVision {
     data class Item(val label: String, val score: Float, val x: Int, val y: Int, val w: Int = 0, val h: Int = 0, val aiLabels: List<String> = emptyList())
     private data class Sample(val embedding: FloatArray)
 
-    fun cellSizePx(c: Context): Int = (DEFAULT_CELL_DP * c.resources.displayMetrics.density).toInt().coerceAtLeast(32)
+    private fun prefs(c: Context) = c.getSharedPreferences("sw", Context.MODE_PRIVATE)
+    fun cellDp(c: Context, ruleId: String): Int = prefs(c).getInt("invCellDp_$ruleId", DEFAULT_CELL_DP).coerceIn(24, 200)
+    fun setCellDp(c: Context, ruleId: String, dp: Int) { prefs(c).edit().putInt("invCellDp_$ruleId", dp.coerceIn(24, 200)).apply() }
+    /** Kích thước ô (px). Có ruleId thì dùng cỡ ô riêng của luật đó, không thì dùng mặc định 64dp. */
+    fun cellSizePx(c: Context, ruleId: String? = null): Int {
+        val dp = if (ruleId == null) DEFAULT_CELL_DP else cellDp(c, ruleId)
+        return (dp * c.resources.displayMetrics.density).toInt().coerceAtLeast(32)
+    }
+
+    /** Chia các vùng thành lưới ô vuông; bỏ ô trùng quá 25% với ô đã có (khi nhiều vùng chồng lên nhau). */
+    fun buildCells(frameW: Int, frameH: Int, regions: List<Region>, size: Int): List<Rect> {
+        val out = ArrayList<Rect>()
+        for (rg in regions) {
+            val l = rg.l.coerceIn(0, frameW); val t = rg.t.coerceIn(0, frameH)
+            val r = rg.r.coerceIn(l, frameW); val b = rg.b.coerceIn(t, frameH)
+            var y = t
+            while (y + size <= b) {
+                var x = l
+                while (x + size <= r) {
+                    val cand = Rect(x, y, x + size, y + size)
+                    if (out.none { overlapArea(it, cand) > size.toLong() * size / 4 }) out.add(cand)
+                    x += size
+                }
+                y += size
+            }
+        }
+        return out
+    }
+    private fun overlapArea(a: Rect, b: Rect): Long {
+        val w = minOf(a.right, b.right) - maxOf(a.left, b.left)
+        val h = minOf(a.bottom, b.bottom) - maxOf(a.top, b.top)
+        return if (w > 0 && h > 0) w.toLong() * h else 0L
+    }
     fun file(c: Context, ruleId: String) = File(c.filesDir, "inv_samples_$ruleId.bin")
 
     @Synchronized fun count(c: Context, ruleId: String): Int = load(c, ruleId).size
@@ -42,26 +74,15 @@ object InventoryVision {
     @Synchronized fun scan(c: Context, ruleId: String, frame: Bitmap, regions: List<Region>): List<Item> {
         val samples = load(c, ruleId)
         if (samples.isEmpty() || regions.isEmpty()) return emptyList()
-        val size = cellSizePx(c)
+        val size = cellSizePx(c, ruleId)
         val out = ArrayList<Item>()
-        for (rg in regions) {
-            val l = rg.l.coerceIn(0, frame.width); val t = rg.t.coerceIn(0, frame.height)
-            val r = rg.r.coerceIn(l, frame.width); val b = rg.b.coerceIn(t, frame.height)
-            if (r - l < size || b - t < size) continue
-            var y = t
-            while (y + size <= b) {
-                var x = l
-                while (x + size <= r) {
-                    val crop = Bitmap.createBitmap(frame, x, y, size, size)
-                    val embedding = try { MobileClip2.embed(c, crop) } finally { crop.recycle() }
-                    val best = samples.maxOfOrNull { MobileClip2.cosine(it.embedding, embedding) } ?: -1f
-                    val keep = best >= KEEP_THRESHOLD
-                    val label = if (keep) "GIU_${(best * 100).toInt()}" else "JOB"
-                    out.add(Item(label, if (keep) best else 1f - best, x + size / 2, y + size / 2, size, size))
-                    x += size
-                }
-                y += size
-            }
+        for (rect in buildCells(frame.width, frame.height, regions, size)) {
+            val crop = Bitmap.createBitmap(frame, rect.left, rect.top, size, size)
+            val embedding = try { MobileClip2.embed(c, crop) } finally { crop.recycle() }
+            val best = samples.maxOfOrNull { MobileClip2.cosine(it.embedding, embedding) } ?: -1f
+            val keep = best >= KEEP_THRESHOLD
+            val label = if (keep) "GIU_${(best * 100).toInt()}" else "JOB"
+            out.add(Item(label, if (keep) best else 1f - best, rect.left + size / 2, rect.top + size / 2, size, size))
         }
         return out.sortedWith(compareBy({ it.y / size }, { it.x }))
     }

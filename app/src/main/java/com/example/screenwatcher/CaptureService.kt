@@ -419,7 +419,7 @@ class CaptureService : Service() {
                     showBubble()
                     return@post
                 }
-                val cell = InventoryVision.cellSizePx(this@CaptureService)
+                val cell = InventoryVision.cellSizePx(this@CaptureService, id)
                 if (rule.regions.none { it.w >= cell && it.h >= cell }) {
                     AppToast.show(this@CaptureService, "Vùng hành trang quá nhỏ. Hãy khoanh vùng có ít nhất một ô 64dp.", Toast.LENGTH_LONG)
                     showBubble()
