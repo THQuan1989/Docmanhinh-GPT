@@ -21,7 +21,6 @@ object OfflineImageAI {
         labeler ?: ImageLabeling.getClient(
             ImageLabelerOptions.Builder()
                 .setConfidenceThreshold(0.35f)
-                .setMaxResultCount(5)
                 .build()
         ).also { labeler = it }
     }

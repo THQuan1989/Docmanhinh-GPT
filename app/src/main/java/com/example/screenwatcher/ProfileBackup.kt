@@ -6,6 +6,7 @@ import android.net.Uri
 import android.provider.DocumentsContract
 import org.json.JSONObject
 import java.io.ByteArrayInputStream
+import java.io.ByteArrayOutputStream
 import java.io.File
 import java.util.UUID
 import java.util.zip.ZipEntry
