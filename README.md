@@ -110,7 +110,24 @@ Lưu ý kỹ thuật: `InventoryVision` là bộ nhận diện thị giác/so kh
 
 ## Nhận diện ảnh offline (v1.3)
 
-- `OfflineImageAI.kt` dùng ML Kit Image Labeling với mô hình bundled trong APK để gắn nhãn ngữ nghĩa cho từng ô ảnh ngay trên điện thoại.
+- Bản 1.4 thay ML Kit Image Labeling bằng MobileCLIP2-S2 ONNX để tạo embedding và so khớp ảnh mẫu trên điện thoại.
 - Không cần API key, không gọi máy chủ và không gửi ảnh ra Internet.
 - Bộ so khớp ảnh mẫu hiện tại vẫn là tầng quyết định GIỮ/JOB; nhãn AI chỉ hiển thị bổ sung vì nhãn phổ thông có thể không nhận ra tên vật phẩm riêng của từng game.
 - Người dùng vẫn phải chọn mẫu vật phẩm cần bảo vệ. Nếu nhãn AI trống, bộ so khớp ảnh mẫu vẫn hoạt động như trước.
+
+
+## MobileCLIP2-S2 (v1.4)
+
+- Nhận diện và so khớp ảnh mẫu bằng embedding MobileCLIP2-S2 qua ONNX Runtime Android.
+- Model vision ONNX (~136 MB) được tải trong bước chuẩn bị/build và đóng gói vào APK; sau khi cài, nhận diện chạy offline, không cần mạng.
+- ML Kit Image Labeling đã bị loại bỏ. ML Kit Text Recognition vẫn được giữ riêng cho chức năng OCR.
+- Lần nâng cấp này thay định dạng mẫu cũ; người dùng cần chọn và lưu lại các ô vật phẩm GIỮ sau khi cài bản 1.4.
+
+### Chuẩn bị model khi build thủ công
+
+```bash
+bash scripts/download_mobileclip2.sh
+gradle assembleDebug --no-daemon --stacktrace
+```
+
+GitHub Actions tự tải model trước khi build APK. Model MobileCLIP2-S2 vision ONNX được lấy từ `plhery/mobileclip2-onnx`; cần tuân thủ giấy phép Apple AMLR đi kèm model. Ngưỡng cosine 0.86 là ngưỡng khởi đầu, cần kiểm thử với ảnh game thực tế trước khi dùng thao tác tự động có tính phá huỷ.
